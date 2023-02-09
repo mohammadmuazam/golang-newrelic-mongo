@@ -15,7 +15,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 var db *mongo.Database
@@ -37,22 +36,25 @@ type GetBookResponse struct {
 	Books []bson.M `json:"books"`
 }
 
-func connectMongo() {
-	nrMon := nrmongo.NewCommandMonitor(nil)
+// func connectMongo() {
+// 	nrMon := nrmongo.NewCommandMonitor(nil)
 
-	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI("mongodb://localhost:27017/bookstore").SetMonitor(nrMon))
-	if err != nil {
-		panic(err)
+// 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI("mongodb://localhost:27017/bookstore").SetMonitor(nrMon))
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	if err := client.Ping(context.TODO(), readpref.Primary()); err != nil {
+// 		panic(err)
+// 	}
+
+// 	fmt.Println("Connected to MongoDB!")
+// 	Client = client
+// }
+
+func addBookToDB(app ...string) {
+	if len(app) > 0 {
+		fmt.Println(app[0])
 	}
-	if err := client.Ping(context.TODO(), readpref.Primary()); err != nil {
-		panic(err)
-	}
-
-	fmt.Println("Connected to MongoDB!")
-	Client = client
-}
-
-func addBookToDB() {
 	booksCollection := Client.Database("bookstore").Collection("books")
 	book := bson.M{"id": 1, "isbn": "448743", "title": "Book One", "author": bson.M{"firstname": "John", "lastname": "Doe"}}
 	result, err := booksCollection.InsertOne(context.Background(), book)
@@ -63,11 +65,12 @@ func addBookToDB() {
 }
 
 func main() {
+
 	log.Print("Creating a newrelic application...")
 
 	app, err := newrelic.NewApplication(
 		newrelic.ConfigAppName("batman-mongo"),
-		newrelic.ConfigLicense("NEW_RELIC_LICENSE_KEY"),
+		newrelic.ConfigLicense("0f3ed09a76c1e0100d821b5e37274a9aFFFFNRAL"),
 		newrelic.ConfigDistributedTracerEnabled(true),
 	)
 	if err != nil {
@@ -80,13 +83,14 @@ func main() {
 	nrMon := nrmongo.NewCommandMonitor(nil)
 	ctx := context.Background()
 
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017").SetMonitor(nrMon))
+	client, err := mongo.Connect(ctx, options.Client().SetTimeout(100*time.Millisecond).ApplyURI("mongodb://localhost:27017").SetMonitor(nrMon))
 	if err != nil {
-		panic(err)
+		fmt.Print(err)
 	}
 	defer client.Disconnect(ctx)
 
-	connectMongo()
+	// connectMongo()
+	Client = client
 
 	addBookToDB()
 
@@ -97,8 +101,8 @@ func main() {
 	r.Get("/books", getBooks)
 	r.Post("/books", addBook)
 
-	log.Println("Server started on the port 8080...")
-	http.ListenAndServe(":8080", r)
+	log.Println("Server started on the port 8001...")
+	http.ListenAndServe(":8001", r)
 }
 
 func newrelicMiddleware(app *newrelic.Application) func(http.Handler) http.Handler {
@@ -120,6 +124,12 @@ func newrelicMiddleware(app *newrelic.Application) func(http.Handler) http.Handl
 func getBooks(w http.ResponseWriter, r *http.Request) {
 	booksCollection := Client.Database("bookstore").Collection("books")
 	ctx := r.Context()
+
+	// ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	// defer cancel()
+	// time.Sleep(10 * time.Second)
+	// do a heavy db operation
+
 	cur, err := booksCollection.Find(ctx, bson.M{})
 	if err != nil {
 		panic(err)

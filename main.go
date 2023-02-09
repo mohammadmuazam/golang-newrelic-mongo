@@ -76,6 +76,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	var appName string = ""
 	app.WaitForConnection(10 * time.Second)
 
 	log.Print("Connected to newrelic...")
